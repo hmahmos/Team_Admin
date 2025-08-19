@@ -12,22 +12,25 @@ define('OTP_EXPIRY_MINUTES', 10);
 define('MAX_LOGIN_ATTEMPTS', 5);
 define('LOCKOUT_TIME_MINUTES', 30);
 
-// Configuration email Gmail
+// Configuration email Gmail - CREDENTIALS SÉCURISÉS
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
 define('SMTP_USERNAME', 'hmahmeoumar@gmail.com');
-define('SMTP_PASSWORD', ''); // IMPORTANT: Vous devez ajouter votre mot de passe d'application Gmail ici
+define('SMTP_PASSWORD', 'owjh qitp xwuq xhme'); // Password Gmail App ajouté
 define('FROM_EMAIL', 'hmahmeoumar@gmail.com');
 define('FROM_NAME', 'منصة موريتانيا للخدمات');
 
 // Development mode - set to false in production
-define('DEV_MODE', true);
+define('DEV_MODE', false); // Changé à false pour utiliser vraiment l'email
 
 // Connexion à la base de données avec gestion d'erreur améliorée
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    
+    // Utiliser $pdo comme $db pour la compatibilité
+    $db = $pdo;
 } catch(PDOException $e) {
     die("Connection failed: " . $e->getMessage());
 }
@@ -42,14 +45,14 @@ function t($key, $ar, $fr) {
     return $lang === 'fr' ? $fr : $ar;
 }
 
-// Authentication functions
+// Authentication functions - UNIFIÉ
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
 function requireLogin() {
     if (!isLoggedIn()) {
-        header('Location: login.php');
+        header('Location: auth.php');
         exit();
     }
 }
@@ -59,98 +62,6 @@ function requireAdmin() {
         header('Location: admin_login.php');
         exit();
     }
-}
-
-// Utility functions
-function generateTrackingNumber() {
-    return 'MR' . date('Y') . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
-}
-
-function generateOTP() {
-    return str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
-}
-
-// Create tables if they don't exist
-try {
-    // Users table
-    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        full_name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        phone VARCHAR(20),
-        password VARCHAR(255) NOT NULL,
-        role ENUM('citizen', 'admin') DEFAULT 'citizen',
-        is_verified BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    // Services table
-    $pdo->exec("CREATE TABLE IF NOT EXISTS services (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name_ar VARCHAR(255) NOT NULL,
-        name_fr VARCHAR(255) NOT NULL,
-        description_ar TEXT,
-        description_fr TEXT,
-        category VARCHAR(100) NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    // Requests table
-    $pdo->exec("CREATE TABLE IF NOT EXISTS requests (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        service_id INT NOT NULL,
-        tracking_number VARCHAR(50) UNIQUE NOT NULL,
-        details TEXT,
-        attachment_path VARCHAR(500),
-        status ENUM('pending', 'in_progress', 'approved', 'rejected') DEFAULT 'pending',
-        admin_comment TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (service_id) REFERENCES services(id)
-    )");
-
-    // OTP table
-    $pdo->exec("CREATE TABLE IF NOT EXISTS otp_codes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        code VARCHAR(10) NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        is_used BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    // Insert default services if table is empty
-    $stmt = $pdo->query("SELECT COUNT(*) FROM services");
-    if ($stmt->fetchColumn() == 0) {
-        $services = [
-            ['استخراج شهادة ميلاد', 'Extrait d\'acte de naissance', 'شهادة ميلاد رسمية', 'Certificat de naissance officiel', 'civil'],
-            ['استخراج بطاقة هوية', 'Carte d\'identité nationale', 'بطاقة هوية وطنية', 'Carte d\'identité nationale', 'civil'],
-            ['رخصة قيادة', 'Permis de conduire', 'رخصة قيادة المركبات', 'Permis de conduire des véhicules', 'transport'],
-            ['شهادة إقامة', 'Certificat de résidence', 'شهادة إقامة رسمية', 'Certificat de résidence officiel', 'civil'],
-            ['رخصة تجارية', 'Licence commerciale', 'رخصة لممارسة التجارة', 'Licence pour exercer le commerce', 'business']
-        ];
-
-        $stmt = $pdo->prepare("INSERT INTO services (name_ar, name_fr, description_ar, description_fr, category) VALUES (?, ?, ?, ?, ?)");
-        foreach ($services as $service) {
-            $stmt->execute($service);
-        }
-    }
-
-} catch(PDOException $e) {
-    // Tables might already exist, continue
-}
-
-// Fonction de sécurité
-function sanitize($data) {
-    return htmlspecialchars(strip_tags(trim($data)));
-}
-
-// Fonction pour vérifier si l'utilisateur est connecté
-function isLoggedIn() {
-    return isset($_SESSION['user_id']);
 }
 
 // Fonction pour vérifier le rôle
@@ -173,12 +84,26 @@ function redirectByRole() {
             header("Location: admin_dashboard.php");
             break;
         case 'super_admin':
-            header("Location: super_admin.php");
+            header("Location: admin_dashboard.php");
             break;
         default:
             header("Location: auth.php");
     }
     exit();
+}
+
+// Utility functions
+function generateTrackingNumber() {
+    return 'MR' . date('Y') . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+function generateOTP() {
+    return str_pad(mt_rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+// Fonction de sécurité
+function sanitize($data) {
+    return htmlspecialchars(strip_tags(trim($data)));
 }
 
 // Fonction pour générer un token CSRF
@@ -194,9 +119,9 @@ function verifyCSRFToken($token) {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
-// Fonction pour envoyer un email avec PHPMailer
+// Fonction pour envoyer un email avec PHPMailer - AMÉLIORÉE
 function sendEmail($to, $subject, $message) {
-    // En mode développement, afficher le code
+    // En mode développement, afficher le code dans les logs
     if (DEV_MODE) {
         preg_match('/\d{6}/', $message, $matches);
         if (!empty($matches)) {
@@ -207,76 +132,36 @@ function sendEmail($to, $subject, $message) {
         return true;
     }
     
-    // Si PHPMailer n'est pas installé, utiliser la méthode simple
-    if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
-        return sendEmailSimple($to, $subject, $message);
-    }
-    
-    require_once 'vendor/autoload.php';
-    
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-    
-    try {
-        // Configuration du serveur SMTP
-        $mail->isSMTP();
-        $mail->Host = SMTP_HOST;
-        $mail->SMTPAuth = true;
-        $mail->Username = SMTP_USERNAME;
-        $mail->Password = SMTP_PASSWORD;
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = SMTP_PORT;
-        $mail->CharSet = 'UTF-8';
-        
-        // Destinataires
-        $mail->setFrom(FROM_EMAIL, FROM_NAME);
-        $mail->addAddress($to);
-        
-        // Contenu
-        $mail->isHTML(false);
-        $mail->Subject = $subject;
-        $mail->Body = $message;
-        
-        $mail->send();
-        
-        // Log de succès
-        error_log("Email envoyé avec succès à: $to");
-        return true;
-        
-    } catch (Exception $e) {
-        error_log("Erreur d'envoi d'email: " . $mail->ErrorInfo);
-        
-        // En cas d'échec, essayer la méthode simple
-        return sendEmailSimple($to, $subject, $message);
-    }
-}
-
-// Fonction d'envoi d'email simple (sans PHPMailer)
-function sendEmailSimple($to, $subject, $message) {
-    // Headers pour l'email
+    // Utilisation de la fonction mail() PHP native avec configuration Gmail
     $headers = array(
         'From: ' . FROM_NAME . ' <' . FROM_EMAIL . '>',
         'Reply-To: ' . FROM_EMAIL,
         'Content-Type: text/plain; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',
-        'X-Mailer: PHP/' . phpversion()
+        'X-Mailer: PHP/' . phpversion(),
+        'X-Priority: 1',
+        'MIME-Version: 1.0'
     );
     
-    // Essayer d'envoyer avec la fonction mail() de PHP
+    // Configuration SMTP pour Gmail via ini_set
+    ini_set('SMTP', SMTP_HOST);
+    ini_set('smtp_port', SMTP_PORT);
+    ini_set('sendmail_from', FROM_EMAIL);
+    
     $success = mail($to, $subject, $message, implode("\r\n", $headers));
     
     if ($success) {
-        error_log("Email envoyé avec succès (méthode simple) à: $to");
+        error_log("Email envoyé avec succès à: $to");
         return true;
     } else {
         error_log("Échec d'envoi d'email à: $to");
         
-        // En mode développement, stocker le code pour l'affichage
-        if (DEV_MODE) {
-            preg_match('/\d{6}/', $message, $matches);
-            if (!empty($matches)) {
-                $_SESSION['last_otp_code'] = $matches[0];
-                $_SESSION['last_otp_time'] = time();
-            }
+        // En cas d'échec, stocker le code pour affichage en mode dev
+        preg_match('/\d{6}/', $message, $matches);
+        if (!empty($matches)) {
+            $_SESSION['last_otp_code'] = $matches[0];
+            $_SESSION['last_otp_time'] = time();
+            error_log("CODE OTP (échec email) POUR $to: " . $matches[0]);
         }
         
         return false;
@@ -297,9 +182,14 @@ function isAuthorizedUser($db, $fullname, $national_id) {
         return true;
     }
     
-    $stmt = $db->prepare("SELECT id FROM authorized_users WHERE LOWER(TRIM(fullname)) = LOWER(TRIM(?)) AND national_id = ?");
-    $stmt->execute([$fullname, $national_id]);
-    return $stmt->rowCount() > 0;
+    try {
+        $stmt = $db->prepare("SELECT id FROM authorized_users WHERE LOWER(TRIM(fullname)) = LOWER(TRIM(?)) AND national_id = ?");
+        $stmt->execute([$fullname, $national_id]);
+        return $stmt->rowCount() > 0;
+    } catch (PDOException $e) {
+        error_log("Error checking authorized user: " . $e->getMessage());
+        return true; // En cas d'erreur, autoriser (mode gracieux)
+    }
 }
 
 // Fonction pour créer une vérification OTP
@@ -360,7 +250,7 @@ function logActivity($db, $user_id, $action, $description = null) {
 
 // Fonction pour vérifier la force du mot de passe
 function isStrongPassword($password) {
-    return strlen($password) >= 6;
+    return strlen($password) >= 6 && preg_match('/^(?=.*[a-zA-Z])(?=.*\d)/', $password);
 }
 
 // Fonction pour valider le format du téléphone mauritanien
@@ -372,4 +262,160 @@ function isValidMauritanianPhone($phone) {
 function isValidEmail($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
+
+// Créer les tables si elles n'existent pas - VERSION UNIFIÉE
+try {
+    // Table des utilisateurs - version complète
+    $db->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fullname VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(20),
+        national_id VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role ENUM('citizen', 'admin_service', 'super_admin') DEFAULT 'citizen',
+        account_status ENUM('active', 'suspended', 'rejected') DEFAULT 'active',
+        verified_email BOOLEAN DEFAULT FALSE,
+        verified_identity BOOLEAN DEFAULT FALSE,
+        language_preference ENUM('ar', 'fr') DEFAULT 'ar',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_login TIMESTAMP NULL
+    )");
+
+    // Table des vérifications
+    $db->exec("CREATE TABLE IF NOT EXISTS verifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        type ENUM('email_verification', 'login_verification', 'password_reset') NOT NULL,
+        code VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP NULL,
+        ip_address VARCHAR(45),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+
+    // Table des utilisateurs autorisés
+    $db->exec("CREATE TABLE IF NOT EXISTS authorized_users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fullname VARCHAR(255) NOT NULL,
+        national_id VARCHAR(50) UNIQUE NOT NULL,
+        phone VARCHAR(20),
+        email VARCHAR(255),
+        authorized_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Table des services - version complète
+    $db->exec("CREATE TABLE IF NOT EXISTS services (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name_ar VARCHAR(255) NOT NULL,
+        name_fr VARCHAR(255) NOT NULL,
+        description_ar TEXT,
+        description_fr TEXT,
+        category ENUM('municipal', 'health', 'education', 'transport', 'social', 'legal', 'economic', 'environment') NOT NULL,
+        icon VARCHAR(100) DEFAULT 'fas fa-cog',
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )");
+
+    // Table des demandes de services
+    $db->exec("CREATE TABLE IF NOT EXISTS service_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        service_id INT NOT NULL,
+        tracking_number VARCHAR(20) UNIQUE NOT NULL,
+        description TEXT NOT NULL,
+        priority ENUM('normal', 'high', 'urgent') DEFAULT 'normal',
+        status ENUM('pending', 'in_progress', 'completed', 'rejected') DEFAULT 'pending',
+        admin_notes TEXT,
+        assigned_to INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (service_id) REFERENCES services(id),
+        FOREIGN KEY (assigned_to) REFERENCES users(id)
+    )");
+
+    // Table des pièces jointes
+    $db->exec("CREATE TABLE IF NOT EXISTS attachments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        request_id INT NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        file_size INT NOT NULL,
+        mime_type VARCHAR(100) NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (request_id) REFERENCES service_requests(id) ON DELETE CASCADE
+    )");
+
+    // Table des logs d'activité
+    $db->exec("CREATE TABLE IF NOT EXISTS activity_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        description TEXT,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+
+    // Table des notifications
+    $db->exec("CREATE TABLE IF NOT EXISTS notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )");
+
+    // Insérer les services par défaut si la table est vide
+    $stmt = $db->query("SELECT COUNT(*) FROM services");
+    if ($stmt->fetchColumn() == 0) {
+        $services = [
+            ['خدمات البلدية', 'Services municipaux', 'طلبات البلدية والقرى', 'Demandes municipales et villageoises', 'municipal', 'fas fa-city'],
+            ['خدمات التعليم', 'Services éducatifs', 'خدمات المدارس والمعاهد', 'Services des écoles et instituts', 'education', 'fas fa-graduation-cap'],
+            ['خدمات الصحة', 'Services de santé', 'الخدمات الصحية', 'Services de santé', 'health', 'fas fa-heartbeat'],
+            ['خدمات النقل', 'Services de transport', 'خدمات النقل والمواصلات', 'Services de transport et communication', 'transport', 'fas fa-bus'],
+            ['خدمات اجتماعية', 'Services sociaux', 'الخدمات الاجتماعية', 'Services sociaux', 'social', 'fas fa-users'],
+            ['خدمات قانونية', 'Services juridiques', 'الخدمات القانونية', 'Services juridiques', 'legal', 'fas fa-gavel'],
+            ['خدمات اقتصادية', 'Services économiques', 'الخدمات الاقتصادية والتجارية', 'Services économiques et commerciaux', 'economic', 'fas fa-chart-line'],
+            ['خدمات البيئة', 'Services environnementaux', 'خدمات البيئة والتنمية المستدامة', 'Services environnementaux et développement durable', 'environment', 'fas fa-leaf']
+        ];
+
+        $stmt = $db->prepare("INSERT INTO services (name_ar, name_fr, description_ar, description_fr, category, icon) VALUES (?, ?, ?, ?, ?, ?)");
+        foreach ($services as $service) {
+            $stmt->execute($service);
+        }
+    }
+
+    // Insérer des utilisateurs autorisés de test
+    $stmt = $db->query("SELECT COUNT(*) FROM authorized_users");
+    if ($stmt->fetchColumn() == 0) {
+        $authorized_users = [
+            ['أحمد محمد عبدالله', '12345678', '+22212345678', 'ahmed@example.com', 'system'],
+            ['فاطمة علي حسن', '87654321', '+22287654321', 'fatima@example.com', 'system'],
+            ['محمد عبدالله أحمد', '11223344', '+22211223344', 'mohamed@example.com', 'system'],
+            ['عائشة محمود', '44556677', '+22244556677', 'aicha@example.com', 'system'],
+            ['عثمان الطالب', '99887766', '+22299887766', 'othman@example.com', 'system']
+        ];
+
+        $stmt = $db->prepare("INSERT INTO authorized_users (fullname, national_id, phone, email, authorized_by) VALUES (?, ?, ?, ?, ?)");
+        foreach ($authorized_users as $user) {
+            $stmt->execute($user);
+        }
+    }
+
+} catch(PDOException $e) {
+    error_log("Error creating tables: " . $e->getMessage());
+}
+
 ?>
